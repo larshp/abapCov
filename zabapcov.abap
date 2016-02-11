@@ -1,17 +1,137 @@
 REPORT zabapcov.
 
-PARAMETERS: pv_prog TYPE programm OBLIGATORY.
+* See https://github.com/larshp/abapCov/
 
-*parameters:
-*filename
-*token
-*commit
-*branch
-*job
+********************************************************************************
+* The MIT License (MIT)
+*
+* Copyright (c) 2016 Lars Hvam Petersen
+*
+* Permission is hereby granted, free of charge, to any person obtaining a copy
+* of this software and associated documentation files (the "Software"), to deal
+* in the Software without restriction, including without limitation the rights
+* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+* copies of the Software, and to permit persons to whom the Software is
+* furnished to do so, subject to the following conditions:
+*
+* The above copyright notice and this permission notice shall be included in all
+* copies or substantial portions of the Software.
+*
+* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+* SOFTWARE.
+********************************************************************************
 
+PARAMETERS: pv_prog  TYPE programm OBLIGATORY,
+            pv_file  TYPE string OBLIGATORY,
+            pv_token TYPE string OBLIGATORY,
+            pv_commi TYPE string OBLIGATORY,
+            pv_branc TYPE string OBLIGATORY.
 
 * 102 = covered
 * 101 = uncovered
+
+CLASS lcl_upload_codecov DEFINITION FINAL.
+
+  PUBLIC SECTION.
+    CLASS-METHODS:
+      upload
+        IMPORTING it_meta TYPE cvt_stmnt_cov_meta_data.
+
+  PRIVATE SECTION.
+    CLASS-METHODS:
+      build_json
+        IMPORTING it_meta        TYPE cvt_stmnt_cov_meta_data
+        RETURNING VALUE(rv_json) TYPE string,
+      call_url
+        IMPORTING iv_json TYPE string.
+
+ENDCLASS.
+
+CLASS lcl_upload_codecov IMPLEMENTATION.
+
+  METHOD upload.
+    DATA(lv_json) = build_json( it_meta ).
+    call_url( lv_json ).
+  ENDMETHOD.
+
+  METHOD call_url.
+
+    DATA: li_client TYPE REF TO if_http_client,
+          lv_code   TYPE i,
+          lv_url    TYPE string.
+
+
+    lv_url = 'https://codecov.io/upload/v2?token=' && pv_token && '&commit=' && pv_commi && '&branch=' && pv_branc.
+
+    BREAK-POINT.
+
+    cl_http_client=>create_by_url(
+      EXPORTING
+        url    = lv_url
+        ssl_id = 'ANONYM'
+      IMPORTING
+        client = li_client ).
+
+    li_client->request->set_cdata( iv_json ).
+
+    li_client->request->set_header_field(
+        name  = '~request_method'
+        value = 'POST' ).
+
+    li_client->send( ).
+    li_client->receive(
+      EXCEPTIONS
+        http_communication_failure = 1
+        http_invalid_state         = 2
+        http_processing_failed     = 3
+        OTHERS                     = 4 ).
+
+    li_client->response->get_status(
+      IMPORTING
+        code   = lv_code ).
+
+    BREAK-POINT.
+
+    li_client->close( ).
+
+  ENDMETHOD.
+
+  METHOD build_json.
+
+    DATA: lt_lines TYPE TABLE OF string,
+          lv_cov   TYPE string,
+          lv_max   TYPE i.
+
+
+    LOOP AT it_meta ASSIGNING FIELD-SYMBOL(<ls_meta>).
+      IF <ls_meta>-row > lv_max.
+        lv_max = <ls_meta>-row.
+      ENDIF..
+    ENDLOOP.
+
+    APPEND 'null' TO lt_lines.
+    DO lv_max TIMES.
+      READ TABLE it_meta ASSIGNING <ls_meta> WITH KEY row = sy-tabix.
+      IF sy-subrc = 0 AND <ls_meta>-color = 102.
+        APPEND '1' TO lt_lines.
+      ELSEIF sy-subrc = 0 AND <ls_meta>-color = 101.
+        APPEND '0' TO lt_lines.
+      ELSE.
+        APPEND 'null' TO lt_lines.
+      ENDIF.
+    ENDDO.
+
+    CONCATENATE LINES OF lt_lines INTO lv_cov SEPARATED BY ','.
+    lv_cov = '{ "coverage": { "' && pv_file && '": [' && lv_cov && '] } }'.
+
+  ENDMETHOD.
+
+ENDCLASS.
 
 CLASS lcl_app DEFINITION FINAL.
 
@@ -78,7 +198,8 @@ CLASS lcl_app IMPLEMENTATION.
 
     DELETE gt_meta WHERE color = '30'.
     SORT gt_meta BY row ASCENDING.
-    BREAK-POINT.
+
+    lcl_upload_codecov=>upload( gt_meta ).
 
   ENDMETHOD.
 
