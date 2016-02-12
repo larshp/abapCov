@@ -55,8 +55,38 @@
   <TEXTPOOL>
    <ID>R</ID>
    <KEY></KEY>
-   <ENTRY>Program ZABAPCOV</ENTRY>
-   <LENGTH>16 </LENGTH>
+   <ENTRY>abapCov</ENTRY>
+   <LENGTH>7 </LENGTH>
+  </TEXTPOOL>
+  <TEXTPOOL>
+   <ID>S</ID>
+   <KEY>P_BRANCH</KEY>
+   <ENTRY>        Branch</ENTRY>
+   <LENGTH>14 </LENGTH>
+  </TEXTPOOL>
+  <TEXTPOOL>
+   <ID>S</ID>
+   <KEY>P_COMMIT</KEY>
+   <ENTRY>        Commit SHA1</ENTRY>
+   <LENGTH>19 </LENGTH>
+  </TEXTPOOL>
+  <TEXTPOOL>
+   <ID>S</ID>
+   <KEY>P_FILE</KEY>
+   <ENTRY>        Repository file name</ENTRY>
+   <LENGTH>28 </LENGTH>
+  </TEXTPOOL>
+  <TEXTPOOL>
+   <ID>S</ID>
+   <KEY>P_PROG</KEY>
+   <ENTRY>        SAP program name</ENTRY>
+   <LENGTH>24 </LENGTH>
+  </TEXTPOOL>
+  <TEXTPOOL>
+   <ID>S</ID>
+   <KEY>P_TOKEN</KEY>
+   <ENTRY>        Codecov token</ENTRY>
+   <LENGTH>21 </LENGTH>
   </TEXTPOOL>
  </TEXTPOOL_TABLE>
 </abapGit>

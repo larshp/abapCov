@@ -26,14 +26,11 @@ REPORT zabapcov.
 * SOFTWARE.
 ********************************************************************************
 
-PARAMETERS: pv_prog  TYPE programm OBLIGATORY,
-            pv_file  TYPE string OBLIGATORY,
-            pv_token TYPE string OBLIGATORY,
-            pv_commi TYPE string OBLIGATORY,
-            pv_branc TYPE string OBLIGATORY.
-
-* 102 = covered
-* 101 = uncovered
+PARAMETERS: p_prog   TYPE programm OBLIGATORY,
+            p_file   TYPE text40 OBLIGATORY,
+            p_token  TYPE text40 OBLIGATORY,
+            p_commit TYPE text40 OBLIGATORY,
+            p_branch TYPE text40 OBLIGATORY.
 
 CLASS lcl_upload_codecov DEFINITION FINAL.
 
@@ -66,9 +63,12 @@ CLASS lcl_upload_codecov IMPLEMENTATION.
           lv_url    TYPE string.
 
 
-    lv_url = 'https://codecov.io/upload/v2?token=' && pv_token && '&commit=' && pv_commi && '&branch=' && pv_branc.
-
-    BREAK-POINT.
+    lv_url = 'https://codecov.io/upload/v2?token=' &&
+      p_token &&
+      '&commit=' &&
+      p_commit &&
+      '&branch=' &&
+      p_branch ##NO_TEXT.
 
     cl_http_client=>create_by_url(
       EXPORTING
@@ -95,13 +95,18 @@ CLASS lcl_upload_codecov IMPLEMENTATION.
       IMPORTING
         code   = lv_code ).
 
-    BREAK-POINT.
+    DATA(lv_resp) = li_client->response->get_cdata( ).
 
     li_client->close( ).
+
+    WRITE: / lv_code.
+    WRITE: / lv_resp.
 
   ENDMETHOD.
 
   METHOD build_json.
+
+    CONSTANTS: c_null TYPE c LENGTH 4 VALUE 'null' ##NO_TEXT.
 
     DATA: lt_lines TYPE TABLE OF string,
           lv_cov   TYPE string,
@@ -111,23 +116,29 @@ CLASS lcl_upload_codecov IMPLEMENTATION.
     LOOP AT it_meta ASSIGNING FIELD-SYMBOL(<ls_meta>).
       IF <ls_meta>-row > lv_max.
         lv_max = <ls_meta>-row.
-      ENDIF..
+      ENDIF.
     ENDLOOP.
 
-    APPEND 'null' TO lt_lines.
+    APPEND c_null TO lt_lines.
     DO lv_max TIMES.
       READ TABLE it_meta ASSIGNING <ls_meta> WITH KEY row = sy-tabix.
+* 102 = covered
+* 101 = uncovered
       IF sy-subrc = 0 AND <ls_meta>-color = 102.
         APPEND '1' TO lt_lines.
       ELSEIF sy-subrc = 0 AND <ls_meta>-color = 101.
         APPEND '0' TO lt_lines.
       ELSE.
-        APPEND 'null' TO lt_lines.
+        APPEND c_null TO lt_lines.
       ENDIF.
     ENDDO.
 
     CONCATENATE LINES OF lt_lines INTO lv_cov SEPARATED BY ','.
-    lv_cov = '{ "coverage": { "' && pv_file && '": [' && lv_cov && '] } }'.
+    rv_json = '{ "coverage": { "' &&
+      p_file &&
+      '": [' &&
+      lv_cov &&
+      '] } }' ##NO_TEXT.
 
   ENDMETHOD.
 
@@ -175,7 +186,7 @@ CLASS lcl_app IMPLEMENTATION.
 
     DATA(lo_runner) = cl_aucv_test_runner_coverage=>create( lo_passport ).
 
-    DATA(lt_keys) = VALUE sabp_t_tadir_keys( ( obj_name = pv_prog obj_type = 'PROG' ) ).
+    DATA(lt_keys) = VALUE sabp_t_tadir_keys( ( obj_name = p_prog obj_type = 'PROG' ) ).
 
     lo_runner->run_for_program_keys(
       EXPORTING
@@ -188,7 +199,7 @@ CLASS lcl_app IMPLEMENTATION.
 
     TRY.
         gi_result = li_coverage->build_coverage_result( ).
-      CATCH cx_scv_execution_error cx_scv_call_error .
+      CATCH cx_scv_execution_error cx_scv_call_error.
         BREAK-POINT.
     ENDTRY.
 
@@ -226,12 +237,12 @@ CLASS lcl_app IMPLEMENTATION.
 
     CASE ii_node->subtype.
       WHEN 'METH'.
-        DATA(mi) = cl_scv_pblock_inspector=>create( ii_node ).
+        DATA(lo_insp) = cl_scv_pblock_inspector=>create( ii_node ).
         lv_pb_type    = 'METH'.
-        lv_pb_name    = mi->get_method_name( ).
-        lv_prog_class = mi->get_class_name( ).
-        lv_prog_type  = mi->get_program_subtype( ).
-        lv_prog_name  = mi->get_program_name( ).
+        lv_pb_name    = lo_insp->get_method_name( ).
+        lv_prog_class = lo_insp->get_class_name( ).
+        lv_prog_type  = lo_insp->get_program_subtype( ).
+        lv_prog_name  = lo_insp->get_program_name( ).
       WHEN OTHERS.
         lv_pb_type   = ii_node->subtype.
         lv_pb_name   = ii_node->name.
