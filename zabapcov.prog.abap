@@ -576,7 +576,8 @@ CLASS lcl_app IMPLEMENTATION.
 
   METHOD run.
 
-    DATA: lt_keys TYPE sabp_t_tadir_keys.
+    DATA: lv_category TYPE seoclassdf-category,
+          lt_keys     TYPE sabp_t_tadir_keys.
 
 
     SELECT obj_name object FROM tadir
@@ -594,6 +595,16 @@ CLASS lcl_app IMPLEMENTATION.
     DATA(lo_files) = NEW lcl_files( ).
 
     LOOP AT lt_keys ASSIGNING FIELD-SYMBOL(<ls_key>).
+      IF <ls_key>-obj_type = 'CLAS'.
+        SELECT SINGLE category FROM seoclassdf
+          INTO lv_category
+          WHERE clsname = <ls_key>-obj_name
+          AND version = '1'.
+        IF sy-subrc = 0 AND lv_category = '05'.
+          CONTINUE.
+        ENDIF.
+      ENDIF.
+
       DATA(lt_meta) = NEW lcl_runner( <ls_key> )->run( ).
       lo_files->push( is_key  = <ls_key>
                       it_meta = lt_meta ).
