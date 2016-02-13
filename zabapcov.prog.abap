@@ -26,7 +26,8 @@ REPORT zabapcov.
 * SOFTWARE.
 ********************************************************************************
 
-TABLES: rs38m, seoclass.
+TABLES: rs38m,
+        seoclass.
 
 SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE TEXT-001.
 PARAMETERS: p_devc TYPE tadir-devclass OBLIGATORY.
@@ -35,28 +36,90 @@ SELECT-OPTIONS: s_prog FOR rs38m-programm,
 SELECTION-SCREEN END OF BLOCK b1.
 
 SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE TEXT-002.
-PARAMETERS: p_sprog TYPE text40 OBLIGATORY DEFAULT '.prog.abap',
-            p_sclas TYPE text40 OBLIGATORY DEFAULT '.clas.abap'.
+PARAMETERS: p_sprog TYPE text40 OBLIGATORY DEFAULT '.prog.abap' ##NO_TEXT,
+            p_sclas TYPE text40 OBLIGATORY DEFAULT '.clas.abap' ##NO_TEXT.
+PARAMETERS: p_lower TYPE c AS CHECKBOX DEFAULT abap_true.
 SELECTION-SCREEN END OF BLOCK b2.
 
 SELECTION-SCREEN BEGIN OF BLOCK b3 WITH FRAME TITLE TEXT-003.
 PARAMETERS: p_token  TYPE text40 OBLIGATORY,
             p_commit TYPE text40 OBLIGATORY,
-            p_branch TYPE text40 OBLIGATORY.
+            p_branch TYPE text40 OBLIGATORY DEFAULT 'master' ##NO_TEXT.
 SELECTION-SCREEN END OF BLOCK b3.
 
+
+CLASS lcl_files DEFINITION FINAL.
+
+  PUBLIC SECTION.
+    METHODS:
+      push
+        IMPORTING
+          is_key  TYPE sabp_s_tadir_key
+          it_meta TYPE cvt_stmnt_cov_meta_data,
+      get_count
+        RETURNING VALUE(rv_count) TYPE i,
+      pop
+        EXPORTING
+          ev_filename TYPE string
+          et_meta     TYPE cvt_stmnt_cov_meta_data.
+
+  PRIVATE SECTION.
+    TYPES: BEGIN OF ty_file,
+             key  TYPE sabp_s_tadir_key,
+             meta TYPE cvt_stmnt_cov_meta_data,
+           END OF ty_file.
+
+    DATA: mt_files TYPE STANDARD TABLE OF ty_file.
+
+ENDCLASS.
+
+CLASS lcl_files IMPLEMENTATION.
+
+  METHOD push.
+    APPEND VALUE #( key = is_key meta = it_meta ) TO mt_files.
+  ENDMETHOD.
+
+  METHOD get_count.
+    rv_count = lines( mt_files ).
+  ENDMETHOD.
+
+  METHOD pop.
+
+    ev_filename = mt_files[ 1 ]-key-obj_name.
+    IF p_lower = abap_true.
+      TRANSLATE ev_filename TO LOWER CASE.
+    ENDIF.
+
+    CASE mt_files[ 1 ]-key-obj_type.
+      WHEN 'PROG'.
+        CONCATENATE ev_filename p_sprog INTO ev_filename.
+      WHEN 'CLAS'.
+        CONCATENATE ev_filename p_sclas INTO ev_filename.
+    ENDCASE.
+
+    et_meta = mt_files[ 1 ]-meta.
+
+    DELETE mt_files INDEX 1.
+    ASSERT sy-subrc = 0.
+
+  ENDMETHOD.
+
+ENDCLASS.
 
 CLASS lcl_upload_codecov DEFINITION FINAL.
 
   PUBLIC SECTION.
     CLASS-METHODS:
       upload
-        IMPORTING it_meta TYPE cvt_stmnt_cov_meta_data.
+        IMPORTING io_files TYPE REF TO lcl_files.
 
   PRIVATE SECTION.
     CLASS-METHODS:
+      build_array
+        IMPORTING it_meta         TYPE cvt_stmnt_cov_meta_data
+        RETURNING VALUE(rv_array) TYPE string,
       build_json
-        IMPORTING it_meta        TYPE cvt_stmnt_cov_meta_data
+        IMPORTING io_files       TYPE REF TO lcl_files
         RETURNING VALUE(rv_json) TYPE string,
       call_url
         IMPORTING iv_json TYPE string.
@@ -66,7 +129,7 @@ ENDCLASS.
 CLASS lcl_upload_codecov IMPLEMENTATION.
 
   METHOD upload.
-    DATA(lv_json) = build_json( it_meta ).
+    DATA(lv_json) = build_json( io_files ).
     call_url( lv_json ).
   ENDMETHOD.
 
@@ -118,12 +181,11 @@ CLASS lcl_upload_codecov IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD build_json.
+  METHOD build_array.
 
-    CONSTANTS: c_null TYPE c LENGTH 4 VALUE 'null' ##NO_TEXT.
+    CONSTANTS: lc_null TYPE c LENGTH 4 VALUE 'null' ##NO_TEXT.
 
     DATA: lt_lines TYPE TABLE OF string,
-          lv_cov   TYPE string,
           lv_max   TYPE i.
 
 
@@ -133,7 +195,7 @@ CLASS lcl_upload_codecov IMPLEMENTATION.
       ENDIF.
     ENDLOOP.
 
-    APPEND c_null TO lt_lines.
+    APPEND lc_null TO lt_lines.
     DO lv_max TIMES.
       READ TABLE it_meta ASSIGNING <ls_meta> WITH KEY row = sy-tabix.
 * 102 = covered
@@ -143,17 +205,37 @@ CLASS lcl_upload_codecov IMPLEMENTATION.
       ELSEIF sy-subrc = 0 AND <ls_meta>-color = 101.
         APPEND '0' TO lt_lines.
       ELSE.
-        APPEND c_null TO lt_lines.
+        APPEND lc_null TO lt_lines.
       ENDIF.
     ENDDO.
 
-    CONCATENATE LINES OF lt_lines INTO lv_cov SEPARATED BY ','.
-* todo
-*    rv_json = '{ "coverage": { "' &&
-*      p_file &&
-*      '": [' &&
-*      lv_cov &&
-*      '] } }' ##NO_TEXT.
+    CONCATENATE LINES OF lt_lines INTO rv_array SEPARATED BY ','.
+    CONCATENATE '[' rv_array ']' INTO rv_array.
+
+  ENDMETHOD.
+
+  METHOD build_json.
+
+    DATA: lt_files TYPE TABLE OF string.
+
+
+    DO io_files->get_count( ) TIMES.
+      io_files->pop(
+        IMPORTING
+          ev_filename = DATA(lv_filename)
+          et_meta     = DATA(lt_meta) ).
+      IF lines( lt_meta ) = 0.
+        CONTINUE.
+      ENDIF.
+      DATA(lv_array) = build_array( lt_meta ).
+      APPEND |"{ lv_filename }": { lv_array }| TO lt_files.
+    ENDDO.
+
+    CONCATENATE LINES OF lt_files INTO rv_json SEPARATED BY ','.
+
+    rv_json = '{ "coverage": { ' &&
+      rv_json &&
+      ' } }' ##NO_TEXT.
 
   ENDMETHOD.
 
@@ -171,7 +253,9 @@ CLASS lcl_source DEFINITION FINAL.
       clas IMPORTING iv_obj_name      TYPE tadir-obj_name
            RETURNING VALUE(rt_source) TYPE svt_src,
       prog IMPORTING iv_obj_name      TYPE tadir-obj_name
-           RETURNING VALUE(rt_source) TYPE svt_src.
+           RETURNING VALUE(rt_source) TYPE svt_src,
+      remove_signatures
+        CHANGING ct_source TYPE svt_src.
 
 ENDCLASS.
 
@@ -185,6 +269,36 @@ CLASS lcl_source IMPLEMENTATION.
       WHEN 'CLAS'.
         rt_source = clas( is_tadir-obj_name ).
     ENDCASE.
+
+  ENDMETHOD.
+
+  METHOD remove_signatures.
+
+    DATA: lv_begin  TYPE string,
+          lv_end    TYPE string,
+          lv_remove TYPE sap_bool.
+
+
+    CONCATENATE '* <SIGNATURE>------------------------------------'
+      '---------------------------------------------------+'
+      INTO lv_begin.
+
+    CONCATENATE '* +------------------------------------------------'
+      '--------------------------------------</SIGNATURE>'
+      INTO lv_end.
+
+    lv_remove = abap_false.
+    LOOP AT ct_source INTO DATA(lv_source).
+      IF lv_source = lv_begin.
+        lv_remove = abap_true.
+      ENDIF.
+      IF lv_remove = abap_true.
+        DELETE ct_source INDEX sy-tabix.
+      ENDIF.
+      IF lv_source = lv_end.
+        lv_remove = abap_false.
+      ENDIF.
+    ENDLOOP.
 
   ENDMETHOD.
 
@@ -206,6 +320,8 @@ CLASS lcl_source IMPLEMENTATION.
 
     lo_source->read( 'A' ).
     rt_source = lo_source->get_old_source( ).
+
+    remove_signatures( CHANGING ct_source = rt_source ).
 
   ENDMETHOD.
 
@@ -243,7 +359,36 @@ CLASS lcl_mapper IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD map.
-* todo
+
+    DATA: lv_match  TYPE abap_bool,
+          lv_offset TYPE i.
+
+
+    IF ms_tadir-obj_type = 'PROG'.
+      RETURN.
+    ENDIF.
+
+    DO lines( mt_source ) TIMES.
+      lv_offset = sy-index - 1.
+
+      lv_match = abap_true.
+      LOOP AT mt_source ASSIGNING FIELD-SYMBOL(<lv_source>)
+          FROM lv_offset + 1 TO lv_offset + lines( it_source ).
+        READ TABLE it_source INDEX sy-tabix - lv_offset ASSIGNING FIELD-SYMBOL(<lv_input>).
+        ASSERT sy-subrc = 0.
+
+        IF <lv_source> <> <lv_input>.
+          lv_match = abap_false.
+          EXIT.
+        ENDIF.
+      ENDLOOP.
+
+      IF lv_match = abap_true.
+        rv_offset = lv_offset.
+        RETURN.
+      ENDIF.
+    ENDDO.
+
   ENDMETHOD.
 
   METHOD is_valid.
@@ -383,14 +528,14 @@ CLASS lcl_runner IMPLEMENTATION.
         i_limit_on_duration_category = '36' " long
         i_limit_on_risk_level        = '33' " critical
         i_program_keys               = VALUE #( ( CORRESPONDING #( ms_tadir ) ) )
-    IMPORTING
-      e_coverage_result            = DATA(li_coverage)
-      e_aunit_result               = DATA(li_aunit) ).
+      IMPORTING
+        e_coverage_result            = DATA(li_coverage)
+        e_aunit_result               = DATA(li_aunit) ).
 
     TRY.
         mi_result = li_coverage->build_coverage_result( ).
       CATCH cx_scv_execution_error cx_scv_call_error.
-        BREAK-POINT.
+        ASSERT 0 = 1.
     ENDTRY.
 
     LOOP AT mi_result->get_root_node( )->get_children( ) INTO DATA(li_node).
@@ -399,6 +544,8 @@ CLASS lcl_runner IMPLEMENTATION.
 
     DELETE mt_meta WHERE color = '30'.
     SORT mt_meta BY row ASCENDING.
+
+    rt_meta = mt_meta.
 
   ENDMETHOD.
 
@@ -436,20 +583,27 @@ CLASS lcl_app IMPLEMENTATION.
       INTO TABLE lt_keys
       WHERE devclass = p_devc
       AND object = 'PROG'
-      AND obj_name IN s_prog.
+      AND obj_name IN s_prog.             "#EC CI_SUBRC "#EC CI_GENBUFF
 
     SELECT obj_name object FROM tadir
       APPENDING TABLE lt_keys
       WHERE devclass = p_devc
       AND object = 'CLAS'
-      AND obj_name IN s_clas.
+      AND obj_name IN s_clas.             "#EC CI_SUBRC "#EC CI_GENBUFF
+
+    DATA(lo_files) = NEW lcl_files( ).
 
     LOOP AT lt_keys ASSIGNING FIELD-SYMBOL(<ls_key>).
       DATA(lt_meta) = NEW lcl_runner( <ls_key> )->run( ).
+      lo_files->push( is_key  = <ls_key>
+                      it_meta = lt_meta ).
     ENDLOOP.
 
-* todo
-* lcl_upload_codecov=>upload( gt_meta ).
+    IF lo_files->get_count( ) > 0.
+      lcl_upload_codecov=>upload( lo_files ).
+    ELSE.
+      WRITE: / 'No objects found'(004).
+    ENDIF.
 
   ENDMETHOD.
 

@@ -61,7 +61,7 @@
   <TEXTPOOL>
    <ID>I</ID>
    <KEY>002</KEY>
-   <ENTRY>Suffixes</ENTRY>
+   <ENTRY>Filenames</ENTRY>
    <LENGTH>18 </LENGTH>
   </TEXTPOOL>
   <TEXTPOOL>
@@ -69,6 +69,12 @@
    <KEY>003</KEY>
    <ENTRY>Upload parameters</ENTRY>
    <LENGTH>27 </LENGTH>
+  </TEXTPOOL>
+  <TEXTPOOL>
+   <ID>I</ID>
+   <KEY>004</KEY>
+   <ENTRY>No objects found</ENTRY>
+   <LENGTH>26 </LENGTH>
   </TEXTPOOL>
   <TEXTPOOL>
    <ID>R</ID>
@@ -92,7 +98,13 @@
    <ID>S</ID>
    <KEY>P_DEVC</KEY>
    <ENTRY>D       .</ENTRY>
-   <LENGTH>9 </LENGTH>
+   <LENGTH>15 </LENGTH>
+  </TEXTPOOL>
+  <TEXTPOOL>
+   <ID>S</ID>
+   <KEY>P_LOWER</KEY>
+   <ENTRY>        Lowercase</ENTRY>
+   <LENGTH>17 </LENGTH>
   </TEXTPOOL>
   <TEXTPOOL>
    <ID>S</ID>
