@@ -26,11 +26,25 @@ REPORT zabapcov.
 * SOFTWARE.
 ********************************************************************************
 
-PARAMETERS: p_prog   TYPE programm OBLIGATORY,
-            p_file   TYPE text40 OBLIGATORY,
-            p_token  TYPE text40 OBLIGATORY,
+TABLES: rs38m, seoclass.
+
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE TEXT-001.
+PARAMETERS: p_devc TYPE tadir-devclass OBLIGATORY.
+SELECT-OPTIONS: s_prog FOR rs38m-programm,
+                s_clas FOR seoclass-clsname.
+SELECTION-SCREEN END OF BLOCK b1.
+
+SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE TEXT-002.
+PARAMETERS: p_sprog TYPE text40 OBLIGATORY DEFAULT '.prog.abap',
+            p_sclas TYPE text40 OBLIGATORY DEFAULT '.clas.abap'.
+SELECTION-SCREEN END OF BLOCK b2.
+
+SELECTION-SCREEN BEGIN OF BLOCK b3 WITH FRAME TITLE TEXT-003.
+PARAMETERS: p_token  TYPE text40 OBLIGATORY,
             p_commit TYPE text40 OBLIGATORY,
             p_branch TYPE text40 OBLIGATORY.
+SELECTION-SCREEN END OF BLOCK b3.
+
 
 CLASS lcl_upload_codecov DEFINITION FINAL.
 
@@ -134,84 +148,149 @@ CLASS lcl_upload_codecov IMPLEMENTATION.
     ENDDO.
 
     CONCATENATE LINES OF lt_lines INTO lv_cov SEPARATED BY ','.
-    rv_json = '{ "coverage": { "' &&
-      p_file &&
-      '": [' &&
-      lv_cov &&
-      '] } }' ##NO_TEXT.
+* todo
+*    rv_json = '{ "coverage": { "' &&
+*      p_file &&
+*      '": [' &&
+*      lv_cov &&
+*      '] } }' ##NO_TEXT.
 
   ENDMETHOD.
 
 ENDCLASS.
 
-CLASS lcl_app DEFINITION FINAL.
+CLASS lcl_source DEFINITION FINAL.
 
   PUBLIC SECTION.
     CLASS-METHODS:
-      run,
-      initialization,
+      read IMPORTING is_tadir         TYPE sabp_s_tadir_key
+           RETURNING VALUE(rt_source) TYPE svt_src.
+
+  PRIVATE SECTION.
+    CLASS-METHODS:
+      clas IMPORTING iv_obj_name      TYPE tadir-obj_name
+           RETURNING VALUE(rt_source) TYPE svt_src,
+      prog IMPORTING iv_obj_name      TYPE tadir-obj_name
+           RETURNING VALUE(rt_source) TYPE svt_src.
+
+ENDCLASS.
+
+CLASS lcl_source IMPLEMENTATION.
+
+  METHOD read.
+
+    CASE is_tadir-obj_type.
+      WHEN 'PROG'.
+        rt_source = prog( is_tadir-obj_name ).
+      WHEN 'CLAS'.
+        rt_source = clas( is_tadir-obj_name ).
+    ENDCASE.
+
+  ENDMETHOD.
+
+  METHOD clas.
+
+    DATA: ls_clskey TYPE seoclskey,
+          lo_source TYPE REF TO cl_oo_source.
+
+
+    ls_clskey-clsname = iv_obj_name.
+
+    CREATE OBJECT lo_source
+      EXPORTING
+        clskey             = ls_clskey
+      EXCEPTIONS
+        class_not_existing = 1
+        OTHERS             = 2.
+    ASSERT sy-subrc = 0.
+
+    lo_source->read( 'A' ).
+    rt_source = lo_source->get_old_source( ).
+
+  ENDMETHOD.
+
+  METHOD prog.
+    READ REPORT iv_obj_name INTO rt_source.
+    ASSERT sy-subrc = 0.
+  ENDMETHOD.
+
+ENDCLASS.
+
+CLASS lcl_mapper DEFINITION FINAL.
+
+  PUBLIC SECTION.
+    METHODS:
+      constructor
+        IMPORTING is_tadir TYPE sabp_s_tadir_key,
+      is_valid
+        IMPORTING it_source       TYPE svt_src
+        RETURNING VALUE(rv_valid) TYPE abap_bool,
+      map
+        IMPORTING it_source        TYPE svt_src
+        RETURNING VALUE(rv_offset) TYPE i.
+
+  PRIVATE SECTION.
+    DATA: mt_source TYPE svt_src,
+          ms_tadir  TYPE sabp_s_tadir_key.
+
+ENDCLASS.
+
+CLASS lcl_mapper IMPLEMENTATION.
+
+  METHOD constructor.
+    ms_tadir = is_tadir.
+    mt_source = lcl_source=>read( ms_tadir ).
+  ENDMETHOD.
+
+  METHOD map.
+* todo
+  ENDMETHOD.
+
+  METHOD is_valid.
+
+    CASE ms_tadir-obj_type.
+      WHEN 'PROG'.
+* todo, for PROG it currently filters out results from INCLUDES
+        rv_valid = boolc( mt_source = it_source ).
+      WHEN 'CLAS'.
+        rv_valid = abap_true.
+    ENDCASE.
+
+  ENDMETHOD.
+
+ENDCLASS.
+
+CLASS lcl_runner DEFINITION FINAL.
+
+  PUBLIC SECTION.
+    METHODS:
+      constructor
+        IMPORTING is_tadir TYPE sabp_s_tadir_key,
+      run
+        RETURNING VALUE(rt_meta) TYPE cvt_stmnt_cov_meta_data.
+
+  PRIVATE SECTION.
+    METHODS:
+      get_runner
+        RETURNING VALUE(ro_runner) TYPE REF TO cl_aucv_test_runner_coverage,
       walk
         IMPORTING ii_node TYPE REF TO if_scv_result_node,
       node
         IMPORTING ii_node TYPE REF TO if_scv_result_node.
 
-    CLASS-DATA:
-      gt_source TYPE svt_src,
-      gt_meta   TYPE cvt_stmnt_cov_meta_data,
-      gi_result TYPE REF TO if_scv_result.
+    DATA:
+      ms_tadir  TYPE sabp_s_tadir_key,
+      mt_meta   TYPE cvt_stmnt_cov_meta_data,
+      mo_mapper TYPE REF TO lcl_mapper,
+      mi_result TYPE REF TO if_scv_result.
 
 ENDCLASS.
 
-CLASS lcl_app IMPLEMENTATION.
+CLASS lcl_runner IMPLEMENTATION.
 
-  METHOD initialization.
-
-    CALL FUNCTION 'RS_SUPPORT_SELECTIONS'
-      EXPORTING
-        report               = sy-cprog
-        variant              = 'DEFAULT'
-      EXCEPTIONS
-        variant_not_existent = 01
-        variant_obsolete     = 02 ##fm_subrc_ok. "#EC CI_SUBRC
-
-  ENDMETHOD.
-
-  METHOD run.
-
-    DATA: lo_passport TYPE REF TO object.
-
-    CALL METHOD ('\PROGRAM=SAPLSAUCV_GUI_RUNNER\CLASS=PASSPORT')=>get
-      RECEIVING
-        result = lo_passport.
-
-    DATA(lo_runner) = cl_aucv_test_runner_coverage=>create( lo_passport ).
-
-    DATA(lt_keys) = VALUE sabp_t_tadir_keys( ( obj_name = p_prog obj_type = 'PROG' ) ).
-
-    lo_runner->run_for_program_keys(
-      EXPORTING
-        i_limit_on_duration_category = '36' " long
-        i_limit_on_risk_level        = '33' " critical
-        i_program_keys               = lt_keys
-      IMPORTING
-        e_coverage_result            = DATA(li_coverage)
-        e_aunit_result               = DATA(li_aunit) ).
-
-    TRY.
-        gi_result = li_coverage->build_coverage_result( ).
-      CATCH cx_scv_execution_error cx_scv_call_error.
-        BREAK-POINT.
-    ENDTRY.
-
-    LOOP AT gi_result->get_root_node( )->get_children( ) INTO DATA(li_node).
-      walk( li_node ).
-    ENDLOOP.
-
-    DELETE gt_meta WHERE color = '30'.
-    SORT gt_meta BY row ASCENDING.
-
-    lcl_upload_codecov=>upload( gt_meta ).
-
+  METHOD constructor.
+    ms_tadir = is_tadir.
+    mo_mapper = NEW lcl_mapper( ms_tadir ).
   ENDMETHOD.
 
   METHOD walk.
@@ -223,6 +302,19 @@ CLASS lcl_app IMPLEMENTATION.
     LOOP AT ii_node->get_children( ) INTO DATA(li_node).
       walk( li_node ).
     ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD get_runner.
+
+    DATA: lo_passport TYPE REF TO object.
+
+
+    CALL METHOD ('\PROGRAM=SAPLSAUCV_GUI_RUNNER\CLASS=PASSPORT')=>get
+      RECEIVING
+        result = lo_passport.
+
+    ro_runner = cl_aucv_test_runner_coverage=>create( lo_passport ).
 
   ENDMETHOD.
 
@@ -263,20 +355,101 @@ CLASS lcl_app IMPLEMENTATION.
     DATA(lt_tkey_selops) = VALUE cvt_test_key_selops( (
       option = 'EQ'
       sign   = 'I'
-      low    = gi_result->get_measurement( )->get_testkey( ) ) ).
+      low    = mi_result->get_measurement( )->get_testkey( ) ) ).
 
     DATA(li_container) = lo_ui_factory->create_stmnt_dcon_factory( lt_tkey_selops
       )->create_stmnt_data_container( lo_pb_info ).
 
-    IF gt_source IS INITIAL.
-      gt_source = li_container->get_source( ).
-    ELSEIF li_container->get_source( ) <> gt_source.
-* ignore includes, todo
+    IF mo_mapper->is_valid( li_container->get_source( ) ) = abap_false.
       RETURN.
     ENDIF.
 
+    DATA(lv_offset) = mo_mapper->map( li_container->get_source( ) ).
+
     DATA(lt_meta) = li_container->get_stmnt_cov_meta_data( ).
-    APPEND LINES OF lt_meta TO gt_meta.
+
+    LOOP AT lt_meta ASSIGNING FIELD-SYMBOL(<ls_meta>).
+      <ls_meta>-row = <ls_meta>-row + lv_offset.
+    ENDLOOP.
+
+    APPEND LINES OF lt_meta TO mt_meta.
+
+  ENDMETHOD.
+
+  METHOD run.
+
+    get_runner( )->run_for_program_keys(
+      EXPORTING
+        i_limit_on_duration_category = '36' " long
+        i_limit_on_risk_level        = '33' " critical
+        i_program_keys               = VALUE #( ( CORRESPONDING #( ms_tadir ) ) )
+    IMPORTING
+      e_coverage_result            = DATA(li_coverage)
+      e_aunit_result               = DATA(li_aunit) ).
+
+    TRY.
+        mi_result = li_coverage->build_coverage_result( ).
+      CATCH cx_scv_execution_error cx_scv_call_error.
+        BREAK-POINT.
+    ENDTRY.
+
+    LOOP AT mi_result->get_root_node( )->get_children( ) INTO DATA(li_node).
+      walk( li_node ).
+    ENDLOOP.
+
+    DELETE mt_meta WHERE color = '30'.
+    SORT mt_meta BY row ASCENDING.
+
+  ENDMETHOD.
+
+ENDCLASS.
+
+CLASS lcl_app DEFINITION FINAL.
+
+  PUBLIC SECTION.
+    CLASS-METHODS:
+      run,
+      initialization.
+
+ENDCLASS.
+
+CLASS lcl_app IMPLEMENTATION.
+
+  METHOD initialization.
+
+    CALL FUNCTION 'RS_SUPPORT_SELECTIONS'
+      EXPORTING
+        report               = sy-cprog
+        variant              = 'DEFAULT'
+      EXCEPTIONS
+        variant_not_existent = 01
+        variant_obsolete     = 02 ##fm_subrc_ok. "#EC CI_SUBRC
+
+  ENDMETHOD.
+
+  METHOD run.
+
+    DATA: lt_keys TYPE sabp_t_tadir_keys.
+
+
+    SELECT obj_name object FROM tadir
+      INTO TABLE lt_keys
+      WHERE devclass = p_devc
+      AND object = 'PROG'
+      AND obj_name IN s_prog.
+
+    SELECT obj_name object FROM tadir
+      APPENDING TABLE lt_keys
+      WHERE devclass = p_devc
+      AND object = 'CLAS'
+      AND obj_name IN s_clas.
+
+    LOOP AT lt_keys ASSIGNING FIELD-SYMBOL(<ls_key>).
+      DATA(lt_meta) = NEW lcl_runner( <ls_key> )->run( ).
+    ENDLOOP.
+
+* todo
+* lcl_upload_codecov=>upload( gt_meta ).
 
   ENDMETHOD.
 

@@ -53,6 +53,24 @@
  <RSMPE_BUTS_TABLE/>
  <TEXTPOOL_TABLE>
   <TEXTPOOL>
+   <ID>I</ID>
+   <KEY>001</KEY>
+   <ENTRY>Objects</ENTRY>
+   <LENGTH>17 </LENGTH>
+  </TEXTPOOL>
+  <TEXTPOOL>
+   <ID>I</ID>
+   <KEY>002</KEY>
+   <ENTRY>Suffixes</ENTRY>
+   <LENGTH>18 </LENGTH>
+  </TEXTPOOL>
+  <TEXTPOOL>
+   <ID>I</ID>
+   <KEY>003</KEY>
+   <ENTRY>Upload parameters</ENTRY>
+   <LENGTH>27 </LENGTH>
+  </TEXTPOOL>
+  <TEXTPOOL>
    <ID>R</ID>
    <KEY></KEY>
    <ENTRY>abapCov</ENTRY>
@@ -72,21 +90,39 @@
   </TEXTPOOL>
   <TEXTPOOL>
    <ID>S</ID>
-   <KEY>P_FILE</KEY>
-   <ENTRY>        Repository file name</ENTRY>
-   <LENGTH>28 </LENGTH>
+   <KEY>P_DEVC</KEY>
+   <ENTRY>D       .</ENTRY>
+   <LENGTH>9 </LENGTH>
   </TEXTPOOL>
   <TEXTPOOL>
    <ID>S</ID>
-   <KEY>P_PROG</KEY>
-   <ENTRY>        SAP program name</ENTRY>
-   <LENGTH>24 </LENGTH>
+   <KEY>P_SCLAS</KEY>
+   <ENTRY>        CLAS suffix</ENTRY>
+   <LENGTH>19 </LENGTH>
+  </TEXTPOOL>
+  <TEXTPOOL>
+   <ID>S</ID>
+   <KEY>P_SPROG</KEY>
+   <ENTRY>        PROG suffix</ENTRY>
+   <LENGTH>19 </LENGTH>
   </TEXTPOOL>
   <TEXTPOOL>
    <ID>S</ID>
    <KEY>P_TOKEN</KEY>
    <ENTRY>        Codecov token</ENTRY>
    <LENGTH>21 </LENGTH>
+  </TEXTPOOL>
+  <TEXTPOOL>
+   <ID>S</ID>
+   <KEY>S_CLAS</KEY>
+   <ENTRY>D       .</ENTRY>
+   <LENGTH>23 </LENGTH>
+  </TEXTPOOL>
+  <TEXTPOOL>
+   <ID>S</ID>
+   <KEY>S_PROG</KEY>
+   <ENTRY>D       .</ENTRY>
+   <LENGTH>20 </LENGTH>
   </TEXTPOOL>
  </TEXTPOOL_TABLE>
 </abapGit>
