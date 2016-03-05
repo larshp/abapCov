@@ -12,4 +12,5 @@ Version requirement: 740 SP8
 ### External links
 http://martinfowler.com/bliki/TestCoverage.html
 
+### Screenshot
 ![image](https://cloud.githubusercontent.com/assets/5888506/13547279/3e250ee8-e2cc-11e5-8781-98f6f2b0e955.png)
