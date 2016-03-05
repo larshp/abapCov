@@ -1,6 +1,6 @@
 # abapCov
 
-Upload ABAP unit test code coverage to [codecov.io](https://codecov.io), works great with [abapGit](http://www.abapgit.org) based projects.
+Upload ABAP unit test code coverage to [codecov.io](https://codecov.io)([example](https://codecov.io/github/larshp/abapOpenChecks?branch=master)), works great with [abapGit](http://www.abapgit.org) based projects.
 
 Version requirement: 740 SP8
 
