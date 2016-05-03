@@ -177,6 +177,10 @@ CLASS lcl_upload_codecov IMPLEMENTATION.
     li_client->close( ).
 
     WRITE: / lv_code.
+    WHILE strlen( lv_resp ) > 120.
+      WRITE: / lv_resp(120).
+      lv_resp = lv_resp+120.
+    ENDWHILE.
     WRITE: / lv_resp.
 
   ENDMETHOD.
