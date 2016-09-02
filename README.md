@@ -1,3 +1,5 @@
+[![abaplint](http://abaplint.org/badges/larshp/abapCov)](http://abaplint.org/project/larshp/abapCov)
+
 # abapCov
 
 Upload ABAP unit test code coverage to [codecov.io](https://codecov.io)([example](https://codecov.io/github/larshp/abapOpenChecks?branch=master)), works great with [abapGit](http://www.abapgit.org) based projects.
