@@ -1,4 +1,4 @@
-[![abaplint](http://abaplint.org/badges/larshp/abapCov)](http://abaplint.org/project/larshp/abapCov)
+[![abaplint](https://abaplint.org/badges/larshp/abapCov)](https://abaplint.org/project/larshp/abapCov)
 
 # abapCov
 
@@ -8,7 +8,7 @@ Version requirement: 740 SP8
 
 ### Installation
 1. Install via [abapGit](http://www.abapgit.org)
-2. Install SSL certificates via STRUST
+2. Install **codecov.io** SSL certificates via STRUST to **SSL client SSL Client (Anonymous)**
 3. Enter parameters and run report ZABAPCOV
 
 ### External links

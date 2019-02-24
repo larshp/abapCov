@@ -526,7 +526,7 @@ CLASS lcl_runner IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD run.
-
+    DATA: ex TYPE REF TO cx_root.
     get_runner( )->run_for_program_keys(
       EXPORTING
         i_limit_on_duration_category = '36' " long
@@ -538,18 +538,18 @@ CLASS lcl_runner IMPLEMENTATION.
 
     TRY.
         mi_result = li_coverage->build_coverage_result( ).
-      CATCH cx_scv_execution_error cx_scv_call_error.
-        ASSERT 0 = 1.
+        LOOP AT mi_result->get_root_node( )->get_children( ) INTO DATA(li_node).
+          walk( li_node ).
+        ENDLOOP.
+
+        DELETE mt_meta WHERE color = '30'.
+        SORT mt_meta BY row ASCENDING.
+
+        rt_meta = mt_meta.
+      CATCH cx_scv_execution_error cx_scv_call_error INTO ex.
+        " ASSERT 0 = 1.
+        WRITE: / ex->get_longtext( ).
     ENDTRY.
-
-    LOOP AT mi_result->get_root_node( )->get_children( ) INTO DATA(li_node).
-      walk( li_node ).
-    ENDLOOP.
-
-    DELETE mt_meta WHERE color = '30'.
-    SORT mt_meta BY row ASCENDING.
-
-    rt_meta = mt_meta.
 
   ENDMETHOD.
 
