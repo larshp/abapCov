@@ -1,4 +1,4 @@
-[![abaplint](https://abaplint.org/badges/larshp/abapCov)](https://abaplint.org/project/larshp/abapCov)
+[![abaplint](https://app.abaplint.org/badges/larshp/abapCov)](https://app.abaplint.org/project/larshp/abapCov)
 
 # abapCov
 
