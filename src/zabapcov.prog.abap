@@ -168,9 +168,7 @@ CLASS lcl_upload_codecov IMPLEMENTATION.
         http_processing_failed     = 3
         OTHERS                     = 4 ).
 
-    li_client->response->get_status(
-      IMPORTING
-        code   = lv_code ).
+    li_client->response->get_status( IMPORTING code = lv_code ).
 
     DATA(lv_resp) = li_client->response->get_cdata( ).
 
